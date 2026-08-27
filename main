@@ -162,10 +162,10 @@
 		const categoryForReceipt = text => { const lower = text.toLowerCase(); if (/uber|ola|metro|fuel|petrol|rapido/.test(lower)) return 'Transport'; if (/rent|electric|furniture|home/.test(lower)) return 'Home'; if (/movie|cinema|game|concert/.test(lower)) return 'Fun'; if (/medicine|doctor|pharmacy|health/.test(lower)) return 'Health'; return 'Food'; };
 		function calculateReceipt() {
 			const text = document.getElementById('receiptText').value.trim();
-			const amountMatch = text.match(/(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i) || text.match(/(?:amount|total|paid)[^\d]{0,15}([\d,]+(?:\.\d{1,2})?)/i);
+			const amountMatch = text.match(/(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i) || text.match(/(?:amount|total|paid|debited|sent|transaction)\D{0,20}([\d,]+(?:\.\d{1,2})?)/i) || text.match(/(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/m);
 			if (!amountMatch) { document.getElementById('receiptResult').textContent = 'Could not find a rupee amount. Add ₹ or INR before the amount.'; return; }
 			const amount = Number(amountMatch[1].replace(/,/g, ''));
-			const paidToMatch = text.match(/(?:paid\s+to|merchant|recipient)\s*[:\-]?\s*([^\r\n]+)/i);
+			const paidToMatch = text.match(/(?:paid\s+to|sent\s+to|merchant|recipient)\s*[:\-]?\s*([^\r\n]+)/i);
 			const merchantLine = paidToMatch ? paidToMatch[1].trim() : text.split(/\r?\n/).map(line => line.trim()).find(line => line && !/(amount|total|upi|transaction|success|ref|date|time|₹|inr|rs\.?)/i.test(line)) || 'Payment receipt';
 			const category = categoryForReceipt(text);
 			document.getElementById('expenseName').value = merchantLine.slice(0, 48);
@@ -210,7 +210,7 @@
 		document.getElementById('receiptClose').addEventListener('click', () => document.getElementById('receiptModal').classList.remove('open'));
 		document.getElementById('receiptModal').addEventListener('click', event => { if (event.target.id === 'receiptModal') event.currentTarget.classList.remove('open'); });
 		document.getElementById('receiptCalculate').addEventListener('click', calculateReceipt);
-		document.getElementById('receiptFile').addEventListener('change', event => { const file = event.target.files[0]; if (file) file.text().then(text => { document.getElementById('receiptText').value = text; }); });
+		document.getElementById('receiptFile').addEventListener('change', event => { const file = event.target.files[0]; if (file) file.text().then(text => { document.getElementById('receiptText').value = text; calculateReceipt(); }); });
 		document.getElementById('expenseList').addEventListener('click', event => { const button = event.target.closest('.delete-btn'); if (button) { expenses = expenses.filter(item => item.id !== Number(button.dataset.id)); render(); } });
 		document.getElementById('expenseDate').value = localDateTimeValue();
 		render();
