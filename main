@@ -162,16 +162,18 @@
 		const dateKey = date => date.toISOString().slice(0, 10);
 		const categoryForReceipt = text => { const lower = text.toLowerCase(); if (/uber|ola|metro|fuel|petrol|rapido/.test(lower)) return 'Transport'; if (/rent|electric|furniture|home/.test(lower)) return 'Home'; if (/movie|cinema|game|concert/.test(lower)) return 'Fun'; if (/medicine|doctor|pharmacy|health/.test(lower)) return 'Health'; return 'Food'; };
 		const typeForReceipt = text => /received|credited|refund|cashback|money in|got paid|cr received/.test(text.toLowerCase()) ? 'income' : 'expense';
+		const cleanReceiptText = text => text.replace(/[|]/g, 'I').replace(/[oO](?=\s*\d)/g, '0').replace(/\s+/g, ' ').trim();
+		const extractReceiptAmount = text => { const labelled = text.match(/(?:grand\s+total|total\s+amount|amount|total|paid|debited|sent|received|credited|transaction)\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i); const currency = text.match(/(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i); const decimal = text.match(/(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/m); const match = labelled || currency || decimal; return match ? Number(match[1].replace(/,/g, '')) : null; };
+		const extractMerchant = text => { const lines = text.split(/\r?\n/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean); const labelled = text.match(/(?:paid\s+to|sent\s+to|transferred\s+to|merchant|recipient|beneficiary|to)\s*[:\-]?\s*([^\r\n]+)/i); const candidate = labelled ? labelled[1] : lines.find(line => !/(amount|total|upi|transaction|success|successful|ref|date|time|₹|inr|rs\.?|debited|credited|received|sent|paid|phone|account|bank)/i.test(line)); return (candidate || 'Payment receipt').replace(/(?:amount|total|upi|transaction|success|successful|ref|date|time).*$/i, '').replace(/[|,:\-]+$/, '').trim().slice(0, 48) || 'Payment receipt'; };
 		function calculateReceipt() {
 			const text = document.getElementById('receiptText').value.trim();
 			const result = document.getElementById('receiptResult'); result.classList.remove('error');
-			const amountMatch = text.match(/(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i) || text.match(/(?:amount|total|paid|debited|sent|received|credited|transaction)\D{0,20}([\d,]+(?:\.\d{1,2})?)/i) || text.match(/(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/m);
-			if (!amountMatch) { result.classList.add('error'); result.textContent = 'Could not find an amount. Upload a clearer receipt or add ₹, INR, or Rs.'; return; }
-			const amount = Number(amountMatch[1].replace(/,/g, ''));
-			const paidToMatch = text.match(/(?:paid\s+to|sent\s+to|merchant|recipient)\s*[:\-]?\s*([^\r\n]+)/i);
-			const merchantLine = paidToMatch ? paidToMatch[1].trim() : text.split(/\r?\n/).map(line => line.trim()).find(line => line && !/(amount|total|upi|transaction|success|ref|date|time|₹|inr|rs\.?)/i.test(line)) || 'Payment receipt';
-			const category = categoryForReceipt(text);
-			const type = typeForReceipt(text);
+			const normalizedText = cleanReceiptText(text);
+			const amount = extractReceiptAmount(normalizedText);
+			if (!amount) { result.classList.add('error'); result.textContent = 'Could not find an amount. Upload a clearer receipt or add ₹, INR, or Rs.'; return; }
+			const merchantLine = extractMerchant(text);
+			const category = categoryForReceipt(normalizedText);
+			const type = typeForReceipt(normalizedText);
 			document.getElementById('expenseName').value = merchantLine.slice(0, 48);
 			document.getElementById('expenseAmount').value = amount;
 			document.getElementById('expenseType').value = type;
