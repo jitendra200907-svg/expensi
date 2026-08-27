@@ -98,6 +98,18 @@
 		.receipt-result { min-height: 18px; margin-top: 13px; color: var(--teal); font: bold 12px Arial, sans-serif; }
 		.close-btn { border: 0; background: none; color: var(--muted); font: 12px Arial, sans-serif; }
 		.receipt-result.error { color: var(--coral); }
+		.login-backdrop { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 20px; background: rgba(32, 37, 34, .76); }
+		.login-backdrop.open { display: grid; }
+		.login-card { width: min(430px, 100%); padding: 32px; border-radius: 14px; background: var(--white); box-shadow: var(--shadow); }
+		.login-card .brand { color: var(--ink); margin-bottom: 30px; }
+		.login-card h2 { margin-bottom: 8px; font-size: 30px; }
+		.login-card p { margin: 0 0 22px; color: var(--muted); font: 13px/1.5 Arial, sans-serif; }
+		.login-form { display: grid; gap: 10px; }
+		.login-form label { color: var(--muted); font: bold 11px Arial, sans-serif; letter-spacing: .8px; text-transform: uppercase; }
+		.login-form input { width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); font: 14px Arial, sans-serif; }
+		.login-form button { padding: 13px; border: 0; border-radius: 7px; background: var(--lime); color: var(--ink); font: bold 12px Arial, sans-serif; }
+		.profile-btn { margin-top: auto; padding: 10px 0 0; border: 0; border-top: 1px solid #3b443e; background: none; color: #aeb5af; text-align: left; font: 11px Arial, sans-serif; }
+		.profile-btn:hover { color: var(--lime); }
 		@media (max-width: 900px) { .app { grid-template-columns: 1fr; } .sidebar { padding: 18px 20px; flex-direction: row; align-items: center; gap: 20px; } .nav { margin: 0 0 0 auto; display: flex; } .nav a { padding: 8px; font-size: 0; } .nav-icon { margin: 0; font-size: 18px; } .sidebar-note { display: none; } main { padding: 30px 20px 40px; } .content-grid { grid-template-columns: 1fr; } }
 		@media (max-width: 620px) { .topbar { display: block; } .date-chip { display: inline-block; margin-top: 18px; } .summary { grid-template-columns: 1fr 1fr; } .summary-card.primary { grid-column: 1 / -1; } .expense-row { grid-template-columns: 38px 1fr 70px 28px; gap: 8px; } .expense-date { grid-column: 2; } .expense-category { display: none; } .expense-cost { grid-column: 3; grid-row: 1 / 3; } .delete-btn { grid-column: 4; grid-row: 1 / 3; opacity: 1; } .add-form { grid-template-columns: 1fr 1fr; } .add-form input:first-child { grid-column: 1 / -1; } .add-btn { min-height: 40px; } }
 	</style>
@@ -111,11 +123,11 @@
 				<a href="#transactions"><span class="nav-icon">↗</span>Transactions</a>
 				<a href="#budgets"><span class="nav-icon">◌</span>Budgets</a>
 			</nav>
-			<div class="sidebar-note"><strong>Small steps, big picture.</strong>Keep an eye on the everyday spending that shapes your month.</div>
+			<div class="sidebar-note"><strong>Small steps, big picture.</strong>Keep an eye on the everyday spending that shapes your month.</div><button class="profile-btn" id="profileBtn" type="button">Change profile name</button>
 		</aside>
 		<main id="overview">
 			<header class="topbar">
-				<div><p class="eyebrow">Tuesday, August 27, 2026</p><h1>Good morning, Jitu.</h1><p class="subhead">Here is your spending snapshot.</p></div>
+				<div><p class="eyebrow">Tuesday, August 27, 2026</p><h1 id="greeting">Good morning.</h1><p class="subhead">Here is your spending snapshot.</p></div>
 				<div class="date-chip">AUGUST 2026 &nbsp;⌄</div>
 			</header>
 			<section class="summary" aria-label="Spending summary">
@@ -141,6 +153,7 @@
 			</div>
 		</main>
 	</div>
+	<div class="login-backdrop" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><div class="login-card"><div class="brand"><span class="brand-mark">E</span> expensi</div><h2 id="loginTitle">Welcome to Expensi.</h2><p>Enter your name to personalize your expense dashboard. Your profile stays on this device.</p><form class="login-form" id="loginForm"><label for="profileName">Your name</label><input id="profileName" required maxlength="40" autocomplete="name" placeholder="e.g. Jitu"><button type="submit">Continue to Expensi</button></form></div></div>
 	<div class="modal-backdrop" id="receiptModal" role="dialog" aria-modal="true" aria-labelledby="receiptTitle">
 		<div class="receipt-modal"><div class="panel-head"><h2 id="receiptTitle">Calculate from receipt</h2><button class="close-btn" id="receiptClose" type="button">Close</button></div><p>Paste payment-app text or upload a receipt image. Expensi detects the merchant, amount, and whether money was sent or received.</p><textarea id="receiptText" placeholder="Example: Paid to Cafe Aroma\nAmount: ₹245.00\nUPI transaction successful"></textarea><div class="receipt-actions"><input id="receiptFile" type="file" accept=".txt,.csv,.json,image/*,text/plain,text/csv,application/json" aria-label="Upload receipt image or text"><button class="add-btn" id="receiptCalculate" type="button">Calculate receipt</button></div><div class="receipt-result" id="receiptResult" aria-live="polite"></div></div>
 	</div>
@@ -155,11 +168,13 @@
 		let expenses = JSON.parse(localStorage.getItem('ledgerly-expenses') || 'null') || seedExpenses;
 		let budget = Number(localStorage.getItem('ledgerly-budget') || 25000);
 		let chartRange = localStorage.getItem('ledgerly-chart-range') || 'weeks';
+		let profileName = localStorage.getItem('expensi-profile-name') || '';
 		const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value);
 		const parseDate = value => new Date(value.includes('T') ? value : value + 'T12:00:00');
 		const formatDate = value => parseDate(value).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 		const localDateTimeValue = () => { const now = new Date(); const offset = now.getTimezoneOffset() * 60000; return new Date(now - offset).toISOString().slice(0, 16); };
 		const dateKey = date => date.toISOString().slice(0, 10);
+		const updateGreeting = () => { document.getElementById('greeting').textContent = profileName ? `Good morning, ${profileName}.` : 'Good morning.'; };
 		const categoryForReceipt = text => { const lower = text.toLowerCase(); if (/donat|charity|ngo|temple|church|mosque|relief|fund raiser/.test(lower)) return 'Donation'; if (/uber|ola|metro|fuel|petrol|rapido/.test(lower)) return 'Transport'; if (/rent|electric|furniture|home/.test(lower)) return 'Home'; if (/movie|cinema|game|concert/.test(lower)) return 'Fun'; if (/medicine|doctor|pharmacy|health/.test(lower)) return 'Health'; return 'Food'; };
 		const typeForReceipt = text => { const lower = text.toLowerCase(); if (/\bcredit(?:ed)?\b|received|refund|cashback|money in|got paid|cr received/.test(lower) && !/\bdebit(?:ed)?\b|money out|dr paid/.test(lower)) return 'income'; return 'expense'; };
 		const cleanReceiptText = text => text.replace(/[|]/g, 'I').replace(/[oO](?=\s*\d)/g, '0').replace(/\s+/g, ' ').trim();
@@ -220,7 +235,11 @@
 		document.getElementById('receiptCalculate').addEventListener('click', calculateReceipt);
 		document.getElementById('receiptFile').addEventListener('change', async event => { const file = event.target.files[0]; if (!file) return; const result = document.getElementById('receiptResult'); result.classList.remove('error'); if (file.type.startsWith('image/')) { result.textContent = 'Reading receipt image...'; if (!window.Tesseract) { await new Promise(resolve => { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'; script.onload = resolve; script.onerror = resolve; document.head.appendChild(script); }); } if (!window.Tesseract) { result.classList.add('error'); result.textContent = 'Image reader could not load. Paste the receipt text instead.'; return; } try { const ocr = await Tesseract.recognize(file, 'eng'); document.getElementById('receiptText').value = ocr.data.text; calculateReceipt(); } catch (error) { result.classList.add('error'); result.textContent = 'Could not read this image. Try a clearer receipt photo.'; } } else { document.getElementById('receiptText').value = await file.text(); calculateReceipt(); } });
 		document.getElementById('expenseList').addEventListener('click', event => { const button = event.target.closest('.delete-btn'); if (button) { expenses = expenses.filter(item => item.id !== Number(button.dataset.id)); render(); } });
+		document.getElementById('loginForm').addEventListener('submit', event => { event.preventDefault(); const name = document.getElementById('profileName').value.trim(); if (!name) return; profileName = name; localStorage.setItem('expensi-profile-name', profileName); updateGreeting(); document.getElementById('loginModal').classList.remove('open'); });
+		document.getElementById('profileBtn').addEventListener('click', () => { document.getElementById('profileName').value = profileName; document.getElementById('loginModal').classList.add('open'); document.getElementById('profileName').focus(); });
 		document.getElementById('expenseDate').value = localDateTimeValue();
+		updateGreeting();
+		if (!profileName) document.getElementById('loginModal').classList.add('open');
 		render();
 		if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 		const sharedParams = new URLSearchParams(location.search);
